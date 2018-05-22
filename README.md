@@ -17,14 +17,19 @@ import (
 )
 
 type MyData struct {
-	AField string `json: "a_field"`
-	ANumber int64 `json: "a_number"`
+	AField string `json:"a_field,omitempty"`
+	ANumber int64 `json:"a_number,omitempty"`
 }
 
 func HandleEvent(ctx context.Context, data MyData) error {
-	eventTime := efgh.EventTime(ctx)
+	eventTime, err := efgh.EventTime(ctx)
+	if err != nil {
+		eventTime = time.Now()
+		log.Printf("Unable to read time from context\n")
+	}
 	eventId := efgh.EventId(ctx)
-	log.Printf("Read event %s at %s: %r", eventId, eventTime.Format(time.RFC3339), data);
+	log.Printf("Read event %s at %s: %r\n", eventId, eventTime.Format(time.RFC3339), data);
+	return nil
 }
 
 func main() {
