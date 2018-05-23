@@ -9,6 +9,32 @@ import (
 	"time"
 )
 
+// Start instantiates a webserver to surface the supplied function
+// as an HTTP endpoint implementing the
+// [Cloud Events HTTP transport](https://github.com/cloudevents/spec/blob/v0.1/http-transport-binding.md#31-binary-content-mode).
+//
+// Start takes a flexible range of function signatures; any combination
+// of the following should work for input args:
+//
+// ```
+// func DoIt()
+// func DoIt(context.Context)
+// func DoIt([]bytes)
+// func DoIt(interface{})  // For JSON unmarshal
+// func DoIt(context.Context, [] bytes)
+// func DoIt(context.Context, interface{})  // For JSON unmarshal
+// ```
+//
+// Similarly, the return value of the function may be any of:
+//
+// ```
+// func DoIt()
+// func DoIt() error
+// func DoIt() []byte
+// func DoIt() interface{}  // For JSON marshall
+// func DoIt() (error, []byte)
+// func DoIt() (error, interface{})  // For JSON marshall
+// ```
 func Start(function interface{}) {
 	handler, err := wrap(function)
 	if err != nil {
@@ -20,6 +46,7 @@ func Start(function interface{}) {
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
+// CloudEventContext represents the CloudEvents "context" fields.
 type CloudEventContext struct {
 	// Type of occurence which has happened.
 	EventType string `json:"eventType"`
@@ -41,6 +68,7 @@ type CloudEventContext struct {
 	Extensions map[string]json.RawMessage `json:"extensions,omitempty"`
 }
 
+// CloudEvent extracts a CloudEventContext from the current context.
 func CloudEvent(ctx context.Context) (CloudEventContext, bool) {
 	r, ok := ctx.Value(contextKey).(CloudEventContext)
 	return r, ok

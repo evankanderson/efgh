@@ -16,7 +16,7 @@ import (
 
 // Implementation of HTTP processing for an event function.
 
-type FunctionHandler struct {
+type functionHandler struct {
 	// The function in question
 	f reflect.Value
 
@@ -25,7 +25,7 @@ type FunctionHandler struct {
 	inType, outType        reflect.Type
 }
 
-func (fh FunctionHandler) Invoke(ctx context.Context, in []byte) (out []byte, err error) {
+func (fh functionHandler) Invoke(ctx context.Context, in []byte) (out []byte, err error) {
 	var args []reflect.Value
 	if fh.needsContext {
 		args = append(args, reflect.ValueOf(ctx))
@@ -34,7 +34,7 @@ func (fh FunctionHandler) Invoke(ctx context.Context, in []byte) (out []byte, er
 		data := reflect.New(fh.inType)
 		if fh.inType.Kind() == reflect.Struct {
 			if err = json.Unmarshal(in, data.Interface()); err != nil {
-				log.Printf("Unable to unmarshall as JSON: %r\n", err)
+				log.Printf("Unable to unmarshall as JSON: %v\n", err)
 				return nil, err
 			}
 		} else if fh.inType.Kind() == reflect.Array && fh.inType.Elem().Kind() == reflect.Uint8 {
@@ -46,7 +46,7 @@ func (fh FunctionHandler) Invoke(ctx context.Context, in []byte) (out []byte, er
 	response := fh.f.Call(args)
 	if fh.outType != nil {
 		// TODO: unpack type
-		log.Printf("Should unpack %r", response[0])
+		log.Printf("Should unpack %v", response[0])
 	}
 	if fh.hasError {
 		var ok bool
@@ -57,7 +57,7 @@ func (fh FunctionHandler) Invoke(ctx context.Context, in []byte) (out []byte, er
 	return
 }
 
-func (fh FunctionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (fh functionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		rw.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -91,7 +91,7 @@ func (fh FunctionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 // Handle Structed Content Mode (https://github.com/cloudevents/spec/blob/v0.1/http-transport-binding.md#32-structured-content-mode)
 func convertStructured(req *http.Request) ([]byte, context.Context, error) {
-	return nil, nil, errors.New("Structured output not supported yet.")
+	return nil, nil, errors.New("structured output not supported yet")
 }
 
 // Handle Binary Content Mode (https://github.com/cloudevents/spec/blob/v0.1/http-transport-binding.md#31-binary-content-mode)
@@ -125,7 +125,7 @@ func convertBinary(req *http.Request) ([]byte, context.Context, error) {
 
 // Convert a function to an HTTP Handler
 func wrap(function interface{}) (http.Handler, error) {
-	h := FunctionHandler{
+	h := functionHandler{
 		f: reflect.ValueOf(function),
 	}
 
@@ -134,11 +134,11 @@ func wrap(function interface{}) (http.Handler, error) {
 	errType := reflect.TypeOf((*error)(nil)).Elem()
 	t := reflect.TypeOf(function)
 	if t.Kind() != reflect.Func {
-		return nil, fmt.Errorf("%r is not a function", t)
+		return nil, fmt.Errorf("%v is not a function", t)
 	}
 
 	if t.NumIn() > 2 {
-		return nil, fmt.Errorf("%r takes too many arguments", t)
+		return nil, fmt.Errorf("%v takes too many arguments", t)
 	}
 	if t.NumIn() > 0 {
 		if t.In(0).Implements(ctxType) {
@@ -149,13 +149,13 @@ func wrap(function interface{}) (http.Handler, error) {
 	}
 	if t.NumIn() == 2 {
 		if !h.needsContext {
-			return nil, fmt.Errorf("First argument must be of type context.Context: %r", t)
+			return nil, fmt.Errorf("First argument must be of type context.Context: %v", t)
 		}
 		h.inType = t.In(1)
 	}
 
 	if t.NumOut() > 2 {
-		return nil, fmt.Errorf("%r returns too many outputs", t)
+		return nil, fmt.Errorf("%v returns too many outputs", t)
 	}
 	if t.NumOut() > 0 {
 		if t.Out(0).Implements(errType) {
@@ -166,7 +166,7 @@ func wrap(function interface{}) (http.Handler, error) {
 	}
 	if t.NumOut() == 2 {
 		if h.hasError || !t.Out(1).Implements(errType) {
-			return nil, fmt.Errorf("Must return (data, error) with two arguments: %r", t)
+			return nil, fmt.Errorf("Must return (data, error) with two arguments: %v", t)
 		}
 		h.hasError = true
 	}
