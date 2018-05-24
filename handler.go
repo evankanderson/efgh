@@ -31,22 +31,29 @@ func (fh functionHandler) Invoke(ctx context.Context, in []byte) (out []byte, er
 		args = append(args, reflect.ValueOf(ctx))
 	}
 	if fh.inType != nil {
-		data := reflect.New(fh.inType)
-		if fh.inType.Kind() == reflect.Struct {
+		if fh.inType.Kind() == reflect.Slice && fh.inType.Elem().Kind() == reflect.Uint8 {
+			args = append(args, reflect.ValueOf(in))
+		} else if fh.inType.Kind() == reflect.Struct {
+			data := reflect.New(fh.inType)
 			if err = json.Unmarshal(in, data.Interface()); err != nil {
 				log.Printf("Unable to unmarshall as JSON: %v\n", err)
 				return nil, err
 			}
-		} else if fh.inType.Kind() == reflect.Array && fh.inType.Elem().Kind() == reflect.Uint8 {
-			data.SetBytes(in)
+			args = append(args, data.Elem())
+		} else {
+			return nil, fmt.Errorf("Unable to unmarshall type: %v", fh.inType)
 		}
-		args = append(args, data.Elem())
 	}
 
 	response := fh.f.Call(args)
 	if fh.outType != nil {
-		// TODO: unpack type
-		log.Printf("Should unpack %v", response[0])
+		if fh.outType.Kind() == reflect.Slice && fh.outType.Elem().Kind() == reflect.Uint8 {
+			out = response[0].Bytes()
+		} else if fh.outType.Kind() == reflect.Struct {
+			out, err = json.Marshal(response[0].Interface())
+		} else {
+			return nil, fmt.Errorf("Unable to marshal type: %v", fh.outType)
+		}
 	}
 	if fh.hasError {
 		var ok bool
