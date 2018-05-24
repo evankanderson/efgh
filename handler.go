@@ -3,7 +3,6 @@ package efgh
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -98,7 +97,25 @@ func (fh functionHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 // Handle Structed Content Mode (https://github.com/cloudevents/spec/blob/v0.1/http-transport-binding.md#32-structured-content-mode)
 func convertStructured(req *http.Request) ([]byte, context.Context, error) {
-	return nil, nil, errors.New("structured output not supported yet")
+	if !strings.HasPrefix(req.Header.Get("Content-Type"), "application/cloudevents+json") {
+		return nil, nil, fmt.Errorf("'Content-Type: %s' is not supported for decoding", req.Header.Get("Content-Type"))
+	}
+	type payload struct {
+		CloudEventContext
+		Data json.RawMessage `json:"data"`
+	}
+
+	in, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Unable to read body: %s", err)
+	}
+
+	var p payload
+	if err = json.Unmarshal(in, &p); err != nil {
+		return nil, nil, fmt.Errorf("Unable to unmarshal CloudEvents envelope: %s", err)
+	}
+	ctx := context.WithValue(req.Context(), contextKey, p)
+	return p.Data, ctx, nil
 }
 
 // Handle Binary Content Mode (https://github.com/cloudevents/spec/blob/v0.1/http-transport-binding.md#31-binary-content-mode)
